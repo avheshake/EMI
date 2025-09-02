@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan EMI Calculator (INR)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        .hover-scale:hover {
+            transform: scale(1.05);
+            transition: transform 0.2s ease-in-out;
+        }
+        .history-row:hover {
+            cursor: pointer;
+            background-color: #E0E7FF;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-5xl m-4">
+        <h1 class="text-3xl font-extrabold mb-6 text-center text-indigo-600">Loan EMI Calculator (INR) 💰</h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div>
+                <label for="loanAmount" class="block text-sm font-medium text-gray-800">Loan Amount (₹)</label>
+                <input type="number" id="loanAmount" class="mt-1 p-3 w-full border rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-400" placeholder="Enter loan amount" value="500000">
+            </div>
+            <div>
+                <label for="interestRate" class="block text-sm font-medium text-gray-800">Annual Interest Rate (%)</label>
+                <input type="number" id="interestRate" class="mt-1 p-3 w-full border rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-400" placeholder="Enter interest rate" value="8">
+            </div>
+            <div>
+                <label for="loanTenure" class="block text-sm font-medium text-gray-800">Loan Tenure</label>
+                <div class="flex mt-1">
+                    <input type="number" id="loanTenure" class="p-3 w-full border rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-400" placeholder="Enter tenure" value="5">
+                    <select id="tenureUnit" class="ml-2 p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-indigo-400">
+                        <option value="years">Years</option>
+                        <option value="months">Months</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-4 mb-6">
+            <button onclick="calculateEMI()" class="w-full bg-indigo-600 text-white p-3 rounded-lg hover:bg-indigo-700 hover-scale">Calculate 🚀</button>
+            <button onclick="clearHistory()" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 hover-scale">Clear History 🗑️</button>
+        </div>
+        <div id="result" class="mt-6 hidden animate-fade-in bg-indigo-50 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold mb-3 text-indigo-700">Summary 📊</h2>
+            <p class="text-lg"><span class="font-medium text-gray-800">Monthly EMI:</span> <span id="emi" class="text-green-600"></span></p>
+            <p class="text-lg"><span class="font-medium text-gray-800">Total Interest Paid:</span> <span id="totalInterest" class="text-red-600"></span></p>
+            <p class="text-lg"><span class="font-medium text-gray-800">Total Amount Paid:</span> <span id="totalAmount" class="text-blue-600"></span></p>
+        </div>
+        <div id="statistics" class="mt-6 hidden animate-fade-in bg-green-50 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold mb-3 text-green-700">Statistics 📈</h2>
+            <p class="text-lg"><span class="font-medium text-gray-800">Loan Tenure (Months):</span> <span id="totalMonths" class="text-indigo-600"></span> 🕒</p>
+            <p class="text-lg"><span class="font-medium text-gray-800">Average Monthly Interest:</span> <span id="avgMonthlyInterest" class="text-red-600"></span> 💸</p>
+            <p class="text-lg"><span class="font-medium text-gray-800">Principal-to-Interest Ratio:</span> <span id="principalInterestRatio" class="text-blue-600"></span> ⚖️</p>
+        </div>
+        <div id="chartContainer" class="mt-6 hidden animate-fade-in">
+            <h2 class="text-xl font-semibold mb-3 text-indigo-700">Principal vs Interest Breakdown 🥧</h2>
+            <canvas id="loanChart" class="max-w-md mx-auto"></canvas>
+        </div>
+        <div id="amortization" class="mt-6 hidden animate-fade-in">
+            <h2 class="text-xl font-semibold mb-3 text-indigo-700">Month-wise EMI Breakdown 📅</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-700">
+                    <thead class="text-xs text-gray-700 uppercase bg-indigo-100">
+                        <tr>
+                            <th class="px-4 py-3">Month</th>
+                            <th class="px-4 py-3">EMI (₹)</th>
+                            <th class="px-4 py-3">Principal Paid (₹)</th>
+                            <th class="px-4 py-3">Interest Paid (₹)</th>
+                            <th class="px-4 py-3">Remaining Balance (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="amortizationTable"></tbody>
+                </table>
+            </div>
+        </div>
+        <div id="history" class="mt-6">
+            <h2 class="text-xl font-semibold mb-3 text-indigo-700">Calculation History 🕰️</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-700">
+                    <thead class="text-xs text-gray-700 uppercase bg-indigo-100">
+                        <tr>
+                            <th class="px-4 py-3">Date & Time</th>
+                            <th class="px-4 py-3">Loan Amount (₹)</th>
+                            <th class="px-4 py-3">Interest Rate (%)</th>
+                            <th class="px-4 py-3">Tenure</th>
+                            <th class="px-4 py-3">Monthly EMI (₹)</th>
+                            <th class="px-4 py-3">Total Interest (₹)</th>
+                            <th class="px-4 py-3">Total Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        let loanChart = null;
+
+        // Load history from localStorage on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadHistory();
+        });
+
+        function calculateEMI(loanAmount, annualInterestRate, loanTenure, tenureUnit, fromHistory = false) {
+            // If called from history, use provided values; otherwise, get from inputs
+            const amount = loanAmount || parseFloat(document.getElementById('loanAmount').value);
+            const rate = annualInterestRate || parseFloat(document.getElementById('interestRate').value);
+            const tenure = loanTenure || parseFloat(document.getElementById('loanTenure').value);
+            const unit = tenureUnit || document.getElementById('tenureUnit').value;
+
+            if (isNaN(amount) || isNaN(rate) || isNaN(tenure) || amount <= 0 || rate < 0 || tenure <= 0) {
+                alert('Please enter valid positive numbers for all fields.');
+                return;
+            }
+
+            const monthlyInterestRate = rate / 12 / 100;
+            const loanTenureMonths = unit === 'years' ? tenure * 12 : tenure;
+
+            // EMI formula: P × r × (1 + r)^n / ((1 + r)^n - 1)
+            const emi = amount * monthlyInterestRate * Math.pow(1 + monthlyInterestRate, loanTenureMonths) /
+                        (Math.pow(1 + monthlyInterestRate, loanTenureMonths) - 1);
+
+            const totalAmountPaid = emi * loanTenureMonths;
+            const totalInterestPaid = totalAmountPaid - amount;
+
+            // Display summary
+            document.getElementById('emi').textContent = `₹${emi.toFixed(2)}`;
+            document.getElementById('totalInterest').textContent = `₹${totalInterestPaid.toFixed(2)}`;
+            document.getElementById('totalAmount').textContent = `₹${totalAmountPaid.toFixed(2)}`;
+            document.getElementById('result').classList.remove('hidden');
+
+            // Display statistics
+            const avgMonthlyInterest = totalInterestPaid / loanTenureMonths;
+            const principalInterestRatio = totalInterestPaid > 0 ? (amount / totalInterestPaid).toFixed(2) : 'N/A';
+            document.getElementById('totalMonths').textContent = `${loanTenureMonths}`;
+            document.getElementById('avgMonthlyInterest').textContent = `₹${avgMonthlyInterest.toFixed(2)}`;
+            document.getElementById('principalInterestRatio').textContent = totalInterestPaid > 0 ? `${principalInterestRatio}:1` : 'N/A';
+            document.getElementById('statistics').classList.remove('hidden');
+
+            // Create pie chart
+            if (loanChart) {
+                loanChart.destroy();
+            }
+            const ctx = document.getElementById('loanChart').getContext('2d');
+            loanChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Principal', 'Interest'],
+                    datasets: [{
+                        data: [amount, totalInterestPaid],
+                        backgroundColor: ['#10B981', '#EF4444', '#F59E0B', '#8B5CF6'],
+                        borderColor: ['#047857', '#B91C1C', '#B45309', '#6B7280'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                font: { size: 14, weight: 'bold' },
+                                color: '#1F2937'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1F2937',
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 12 },
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(2);
+                                    return `${context.label}: ₹${value.toFixed(2)} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            document.getElementById('chartContainer').classList.remove('hidden');
+
+            // Calculate amortization schedule
+            let balance = amount;
+            let tableBody = '';
+            for (let month = 1; month <= loanTenureMonths; month++) {
+                const interestPaid = balance * monthlyInterestRate;
+                const principalPaid = emi - interestPaid;
+                balance -= principalPaid;
+
+                tableBody += `
+                    <tr class="hover:bg-indigo-50">
+                        <td class="border px-4 py-3">${month}</td>
+                        <td class="border px-4 py-3">₹${emi.toFixed(2)}</td>
+                        <td class="border px-4 py-3 text-green-600">₹${principalPaid.toFixed(2)}</td>
+                        <td class="border px-4 py-3 text-red-600">₹${interestPaid.toFixed(2)}</td>
+                        <td class="border px-4 py-3">₹${Math.max(0, balance.toFixed(2))}</td>
+                    </tr>
+                `;
+            }
+
+            document.getElementById('amortizationTable').innerHTML = tableBody;
+            document.getElementById('amortization').classList.remove('hidden');
+
+            // Save to history only if not from history
+            if (!fromHistory) {
+                saveToHistory(amount, rate, tenure, unit, emi, totalInterestPaid, totalAmountPaid);
+            }
+        }
+
+        function saveToHistory(loanAmount, interestRate, tenure, tenureUnit, emi, totalInterest, totalAmount) {
+            const history = JSON.parse(localStorage.getItem('loanCalculations') || '[]');
+            const date = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+            history.push({
+                date,
+                loanAmount,
+                interestRate,
+                tenure: `${tenure} ${tenureUnit}`,
+                tenureValue: tenure,
+                tenureUnit,
+                emi,
+                totalInterest,
+                totalAmount
+            });
+            localStorage.setItem('loanCalculations', JSON.stringify(history));
+            loadHistory();
+        }
+
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('loanCalculations') || '[]');
+            let tableBody = '';
+            history.forEach((entry, index) => {
+                tableBody += `
+                    <tr class="history-row" onclick="recalculateFromHistory(${index})">
+                        <td class="border px-4 py-3">${entry.date}</td>
+                        <td class="border px-4 py-3">₹${entry.loanAmount.toFixed(2)}</td>
+                        <td class="border px-4 py-3">${entry.interestRate.toFixed(2)}%</td>
+                        <td class="border px-4 py-3">${entry.tenure}</td>
+                        <td class="border px-4 py-3">₹${entry.emi.toFixed(2)}</td>
+                        <td class="border px-4 py-3 text-red-600">₹${entry.totalInterest.toFixed(2)}</td>
+                        <td class="border px-4 py-3 text-blue-600">₹${entry.totalAmount.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            document.getElementById('historyTable').innerHTML = tableBody;
+        }
+
+        function recalculateFromHistory(index) {
+            const history = JSON.parse(localStorage.getItem('loanCalculations') || '[]');
+            const entry = history[index];
+            if (entry) {
+                // Populate input fields
+                document.getElementById('loanAmount').value = entry.loanAmount;
+                document.getElementById('interestRate').value = entry.interestRate;
+                document.getElementById('loanTenure').value = entry.tenureValue;
+                document.getElementById('tenureUnit').value = entry.tenureUnit;
+                // Recalculate with history values
+                calculateEMI(entry.loanAmount, entry.interestRate, entry.tenureValue, entry.tenureUnit, true);
+            }
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear the calculation history?')) {
+                localStorage.removeItem('loanCalculations');
+                document.getElementById('historyTable').innerHTML = '';
+            }
+        }
+    </script>
+</body>
+</html>
